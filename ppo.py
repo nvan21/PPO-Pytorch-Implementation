@@ -24,6 +24,12 @@ def get_args():
     )
 
     parser.add_argument(
+        "--gamma", type=float, default=0.99, help="discount factor for rewards"
+    )
+    parser.add_argument(
+        "--gae_lambda", type=float, default=0.95, help="the lambda value for GAE"
+    )
+    parser.add_argument(
         "--num_envs",
         type=int,
         default=4,
@@ -171,3 +177,25 @@ if __name__ == "__main__":
             # Create the next_state and next_done tensor that'll be appended to their respective storage tensors during the next iteration
             next_state = torch.Tensor(state).to(device)
             next_done = torch.Tensor(done).to(device)
+
+        with torch.no_grad():
+            next_value = agent.get_value(next_state).reshape(1, -1)
+
+            # Creates a tensor of zeros with the same shape as the rewards tensor
+            advantages = torch.zeros_like(rewards).to(device)
+            prev_advantage = 0
+
+            for t in reversed(range(args.steps_per_batch)):
+                # Deals with the first iteration when trying to calculate the mask
+                if t == args.steps_per_batch - 1:
+                    mask = 1 - next_done
+                else:
+                    mask = 1 - dones[t + 1]
+                    next_value = values[t + 1]
+
+                # Equation for temporal difference (TD) - ignores the next value term if it's a terminal state
+                delta_t = -values[t] + rewards[t] + args.gamma * next_value * mask
+
+                # Equation for GAE
+                prev_advantage = delta_t + args.gamma * args.gae_lambda * prev_advantage
+                advantages[t] = prev_advantage

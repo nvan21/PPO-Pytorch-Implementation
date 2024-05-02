@@ -56,4 +56,4 @@ Be able to dockerize it to run on the HPC
 1. Compute delta_t at all timesteps using the value function
    1. The formula is as follows: -(value of current state) + reward from current state + discount factor \* value of next state
 2. Compute the advantage at all timesteps using the advantage equation
-   1. The formula is as follows: (gamma _ lamda)^(step number) _ delta\_(step # + 1)
+   1. The formula is as follows: (gamma \* lamda)^(step number) \_ delta\_(step # + 1)
