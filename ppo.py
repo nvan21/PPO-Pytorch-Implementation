@@ -48,3 +48,29 @@ def get_args():
     )
 
     return parser.parse_args()
+
+
+def create_env(env_id, seed):
+    def callback():
+        env = gym.make(env_id)
+
+        env.action_space.seed(seed)
+        env.observation_space.seed(seed)
+
+        return env
+
+    return callback
+
+
+if __name__ == "__main__":
+    args = get_args()
+
+    # Initialize seeding
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+
+    # Initalize vectorized gym environments
+    envs = gym.vector.SyncVectorEnv(
+        [create_env(args.env_id, args.seed) for i in range(args.num_envs)]
+    )
