@@ -34,14 +34,28 @@ Be able to dockerize it to run on the HPC
   - optimizer.param_groups[0]["lr"] updates the learning rate
 - Use torch.no_grad() wherever possible to be more efficient
 - Bootstrapping refers to the process of estimating the value of a state or action based on the estimates of the values of subsequent states or actions
+- Penalizing the KL coefficient ensures that the updated policy is not too far from the original policy
+  - The KL divergence is a measure of how far one probability distribution (like the action probability distribution from a policy) to another probability distribution
+  - However, it empirically performs worse than the clipped surrogate objective according to the PPO paper
+- The objective below is maximized each iteration:
+  - objective =
 
-# Psuedocode
+# PPO Pseudocode
 
 1. Take in arguments from command line
 2. Initialize seeding (random, np.random, and torch.manual_seed)
 3. Initialize synchronous environments using gym.vector.SyncVectorEnv() - takes a function as the argument
 4. Initialize actor and critic MLP networks (can be a single Agent class) and their optimizers
    1. For PPO, use orthogonal initialization for weights and constant initialization for biases (sqrt(2) and 0 respectively)
-5. Initialize storage tensors (states, actions, logprobs, rewards, dones, values)
+5. Initialize storage tensors (states, actions, log_probs, rewards, dones, values)
 6. For update in number of updates (total timesteps / batch size)
-   1.
+   1. Collect trajectory data from the actors for updates per batch number of timesteps
+   2. Compute advantage estimates
+   3. Optimize the surrogate L for K epochs with minibatch size M (number of actors \* number of updates per batch)
+
+# GAE Pseudocode
+
+1. Compute delta_t at all timesteps using the value function
+   1. The formula is as follows: -(value of current state) + reward from current state + discount factor \* value of next state
+2. Compute the advantage at all timesteps using the advantage equation
+   1. The formula is as follows: (gamma _ lamda)^(step number) _ delta\_(step # + 1)
