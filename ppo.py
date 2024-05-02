@@ -5,6 +5,7 @@ import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn as nn
+from torch.distributions import Categorical
 
 
 def get_args():
@@ -23,12 +24,6 @@ def get_args():
     )
 
     parser.add_argument(
-        "--num_epochs",
-        type=int,
-        default=50,
-        help="number of epochs the training should go through (the number of batches to collect)",
-    )
-    parser.add_argument(
         "--num_envs",
         type=int,
         default=4,
@@ -46,6 +41,12 @@ def get_args():
         default=3e-4,
         help="the learning rate for the optimizer",
     )
+    parser.add_argument(
+        "--steps_per_batch",
+        type=int,
+        default=128,
+        help="the number of timesteps for each sub-trajectory",
+    )
 
     return parser.parse_args()
 
@@ -54,6 +55,8 @@ def get_args():
 def init_layer(layer: nn.Linear, std=np.sqrt(2), bias_const=0.0):
     nn.init.orthogonal_(layer.weight, std)
     nn.init.constant_(layer.bias, bias_const)
+
+    return layer
 
 
 class Agent(nn.Module):
@@ -75,6 +78,18 @@ class Agent(nn.Module):
             nn.Tanh(),
             init_layer(nn.Linear(64, envs.single_action_space.n)),
         )
+
+    def get_action(self, state):
+        logits = self.actor(state)
+        probs = Categorical(logits=logits)
+
+        action = probs.sample()
+        log_prob = probs.log_prob(action)
+
+        return action, log_prob
+
+    def get_value(self, state):
+        return self.critic(state)
 
 
 def create_env(env_id, seed):
@@ -116,15 +131,43 @@ if __name__ == "__main__":
     # This means that each row in the printed tensor is the observation for one environment in one step
     # It's effectively creating a 3D matrix with the following dimensions: number of steps x number of envs x space of observation/action space
     states = torch.zeros(
-        (args.num_steps, args.num_envs) + envs.single_observation_space.shape
+        (args.steps_per_batch, args.num_envs) + envs.single_observation_space.shape
     ).to(device)
     actions = torch.zeros(
-        (args.num_steps, args.num_envs) + envs.single_action_space.shape
+        (args.steps_per_batch, args.num_envs) + envs.single_action_space.shape
     ).to(device)
-    log_probs = torch.zeros(args.num_steps, args.num_envs).to(device)
-    rewards = torch.zeros(args.num_steps, args.num_envs).to(device)
-    dones = torch.zeros(args.num_steps, args.num_envs).to(device)
-    values = torch.zeros(args.num_steps, args.num_envs).to(device)
+    log_probs = torch.zeros(args.steps_per_batch, args.num_envs).to(device)
+    rewards = torch.zeros(args.steps_per_batch, args.num_envs).to(device)
+    dones = torch.zeros(args.steps_per_batch, args.num_envs).to(device)
+    values = torch.zeros(args.steps_per_batch, args.num_envs).to(device)
 
-    for update in range(args.num_epochs):
-        pass
+    # Initialize next_states and next_dones tensors for the initial environment step
+    initial_states, _ = envs.reset()
+    next_state = torch.Tensor(initial_states).to(device)
+    next_done = torch.zeros(args.num_envs).to(device)
+
+    # Calculate the batch size and number of epochs based on the steps per batch, number of environments, and total timesteps
+    batch_size = int(args.steps_per_batch * args.num_envs)
+    num_epochs = int(args.total_timesteps / batch_size)
+    for update in range(num_epochs):
+
+        for t in range(args.steps_per_batch):
+            states[t] = next_state
+            dones[t] = next_done
+
+            with torch.no_grad():
+                action, log_prob = agent.get_action(next_state)
+                value = agent.get_value(next_state)
+                values[t] = value.flatten()
+
+            # Take a step in the environments based on the action returned from the actor network
+            # The tensor has to be transferred back to the CPU since it's carrying out the environment interaction.
+            # The tensor then has to be converted to a numpy array because that's what the gym environment takes
+            state, reward, done, *info = envs.step(action.cpu().numpy())
+
+            # Add the new reward to the rewards storage tensor
+            rewards[t] = torch.tensor(reward).to(device)
+
+            # Create the next_state and next_done tensor that'll be appended to their respective storage tensors during the next iteration
+            next_state = torch.Tensor(state).to(device)
+            next_done = torch.Tensor(done).to(device)

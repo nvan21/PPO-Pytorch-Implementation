@@ -37,8 +37,6 @@ Be able to dockerize it to run on the HPC
 - Penalizing the KL coefficient ensures that the updated policy is not too far from the original policy
   - The KL divergence is a measure of how far one probability distribution (like the action probability distribution from a policy) to another probability distribution
   - However, it empirically performs worse than the clipped surrogate objective according to the PPO paper
-- The objective below is maximized each iteration:
-  - objective =
 
 # PPO Pseudocode
 

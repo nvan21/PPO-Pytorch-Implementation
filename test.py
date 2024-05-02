@@ -3,9 +3,7 @@ import gymnasium as gym
 
 env = gym.make("Pendulum-v1")
 
-print(env.observation_space.shape)
-obs = torch.zeros((4, 3))
-print(obs)
+x = torch.tensor([[1, 2, 3], [4, 5, 6]])
 
-obs = torch.zeros((4, 3) + (5,))
-print(obs)
+print(x.reshape(1, -1))
+print(x.view(-1))
