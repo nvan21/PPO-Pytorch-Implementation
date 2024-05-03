@@ -1,5 +1,6 @@
 import argparse
 import random
+import time
 
 import gymnasium as gym
 import numpy as np
@@ -22,6 +23,12 @@ def get_args():
     parser.add_argument(
         "--cuda", type=bool, default=True, help="flag whether or not to use cuda"
     )
+    parser.add_argument(
+        "--record_video",
+        type=bool,
+        default=False,
+        help="flag whether or not to record vidoes of training",
+    )
 
     parser.add_argument(
         "--gamma", type=float, default=0.99, help="discount factor for rewards"
@@ -30,10 +37,40 @@ def get_args():
         "--gae_lambda", type=float, default=0.95, help="the lambda value for GAE"
     )
     parser.add_argument(
+        "--clip",
+        type=float,
+        default=0.2,
+        help="the clipping coefficient described in the original PPO paper",
+    )
+    parser.add_argument(
+        "--entropy_coeff",
+        type=float,
+        default=0.01,
+        help="coefficient of the entropy in the loss equation",
+    )
+    parser.add_argument(
+        "--value_coeff",
+        type=float,
+        default=0.5,
+        help="coefficient of the value loss in the loss equation",
+    )
+    parser.add_argument(
         "--num_envs",
         type=int,
         default=4,
         help="the number of synchronous environments used by the agent for training",
+    )
+    parser.add_argument(
+        "--updates_per_epoch",
+        type=int,
+        default=4,
+        help="the number of policy updates to do per epoch (K in the original paper)",
+    )
+    parser.add_argument(
+        "--normalize_advantage",
+        type=bool,
+        default=True,
+        help="flag whether or not to normalize advantages",
     )
     parser.add_argument(
         "--total_timesteps",
@@ -52,6 +89,9 @@ def get_args():
         type=int,
         default=128,
         help="the number of timesteps for each sub-trajectory",
+    )
+    parser.add_argument(
+        "--num_minibatches", type=int, default=4, help="number of minibatches"
     )
 
     return parser.parse_args()
@@ -85,25 +125,29 @@ class Agent(nn.Module):
             init_layer(nn.Linear(64, envs.single_action_space.n)),
         )
 
-    def get_action(self, state):
+    def get_action(self, state, action=None):
         logits = self.actor(state)
         probs = Categorical(logits=logits)
 
-        action = probs.sample()
+        if action == None:
+            action = probs.sample()
+
         log_prob = probs.log_prob(action)
 
-        return action, log_prob
+        return action, log_prob, probs.entropy()
 
     def get_value(self, state):
         return self.critic(state)
 
 
-def create_env(env_id, seed):
+def create_env(env_id, seed, idx, record_video):
     def callback():
-        env = gym.make(env_id)
-
-        env.action_space.seed(seed)
-        env.observation_space.seed(seed)
+        env = gym.make(env_id, render_mode="rgb_array")
+        if record_video:
+            if idx == 0:
+                env = gym.wrappers.RecordVideo(env, f"videos/{args.env_id}")
+            env.action_space.seed(seed)
+            env.observation_space.seed(seed)
 
         return env
 
@@ -120,7 +164,10 @@ if __name__ == "__main__":
 
     # Initalize vectorized gym environments
     envs = gym.vector.SyncVectorEnv(
-        [create_env(args.env_id, args.seed) for i in range(args.num_envs)]
+        [
+            create_env(args.env_id, args.seed, i, args.record_video)
+            for i in range(args.num_envs)
+        ]
     )
 
     device = torch.device(
@@ -131,6 +178,8 @@ if __name__ == "__main__":
     agent_optimizer = torch.optim.Adam(
         agent.parameters(), lr=args.learning_rate, eps=1e-5
     )
+
+    mse_loss = nn.MSELoss()
 
     # Initialize storage tensors - for states and actions, each tensor has a dimension for each step.
     # The matrix in this dimension is number of envs x observation/action space
@@ -152,19 +201,27 @@ if __name__ == "__main__":
     next_state = torch.Tensor(initial_states).to(device)
     next_done = torch.zeros(args.num_envs).to(device)
 
-    # Calculate the batch size and number of epochs based on the steps per batch, number of environments, and total timesteps
+    # Calculate the batch size, minibatch size, and number of epochs based on the steps per batch, number of environments, and total timesteps
     batch_size = int(args.steps_per_batch * args.num_envs)
+    minibatch_size = int(batch_size // args.num_minibatches)
     num_epochs = int(args.total_timesteps / batch_size)
+    total_t = 0
+    start_time = time.time()
     for update in range(num_epochs):
 
         for t in range(args.steps_per_batch):
+            total_t += 1 * args.num_envs
             states[t] = next_state
             dones[t] = next_done
 
             with torch.no_grad():
-                action, log_prob = agent.get_action(next_state)
+                action, log_prob, _ = agent.get_action(next_state)
                 value = agent.get_value(next_state)
                 values[t] = value.flatten()
+
+            # Store the action and its log probability
+            actions[t] = action
+            log_probs[t] = log_prob
 
             # Take a step in the environments based on the action returned from the actor network
             # The tensor has to be transferred back to the CPU since it's carrying out the environment interaction.
@@ -199,3 +256,68 @@ if __name__ == "__main__":
                 # Equation for GAE
                 prev_advantage = delta_t + args.gamma * args.gae_lambda * prev_advantage
                 advantages[t] = prev_advantage
+
+                # Calculate returns (used for value function loss)
+                returns = advantages + values
+
+        # Flatten storage tensors so that they can be sliced into minibatches
+        batch_states = states.reshape((-1,) + envs.single_observation_space.shape)
+        batch_actions = actions.reshape((-1,) + envs.single_action_space.shape)
+        batch_log_probs = log_probs.reshape(-1)
+        batch_advantages = advantages.reshape(-1)
+        batch_values = values.reshape(-1)
+        batch_returns = returns.reshape(-1)
+
+        # Create list of indexes that are randomized for minibatch slicing
+        batch_idxs = np.arange(batch_size)
+
+        for epoch in range(args.updates_per_epoch):
+            # Randomize the batch into minibatch updates
+            np.random.shuffle(batch_idxs)
+
+            for start_idx in range(0, batch_size, minibatch_size):
+                end_idx = start_idx + minibatch_size
+
+                minibatch_idxs = batch_idxs[start_idx:end_idx]
+
+                _, new_log_probs, entropy = agent.get_action(
+                    batch_states[minibatch_idxs], batch_actions[minibatch_idxs]
+                )
+                new_value = agent.get_value(batch_states[minibatch_idxs]).view(-1)
+
+                minibatch_advantages = batch_advantages[minibatch_idxs].to(device)
+
+                if args.normalize_advantage:
+                    minibatch_advantages = (
+                        minibatch_advantages - minibatch_advantages.mean()
+                    ) / (minibatch_advantages.std() + 1e-8)
+
+                log_ratio = new_log_probs - batch_log_probs[minibatch_idxs]
+                surrogate_obj_1 = log_ratio * minibatch_advantages
+                surrogate_obj_2 = (
+                    torch.clamp(log_ratio, 1 - args.clip, 1 + args.clip)
+                    * minibatch_advantages
+                )
+
+                policy_loss = torch.min(surrogate_obj_1, surrogate_obj_2).mean()
+                value_loss = mse_loss(new_value, batch_returns[minibatch_idxs])
+                entropy_loss = entropy.mean()
+
+                # Calculate the loss value. The paper maximizes the objective function, but Adam uses gradient descent,
+                # so need to take the negative of the objective function in the paper.
+                loss = (
+                    -policy_loss
+                    + args.value_coeff * value_loss
+                    - args.entropy_coeff * entropy_loss
+                )
+
+                agent_optimizer.zero_grad()
+                loss.backward()
+                agent_optimizer.step()
+
+        print(f"Total timesteps: {total_t}")
+        print(f"Loss: {loss}")
+        print(f"Total training time: {round(time.time() - start_time, 2)}")
+        print("")
+
+    envs.close()
