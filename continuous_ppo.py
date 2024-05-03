@@ -7,7 +7,7 @@ import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.distributions import Categorical
+from torch.distributions import Normal
 
 
 def get_args():
@@ -111,7 +111,7 @@ class Agent(nn.Module):
         super(Agent, self).__init__()
 
         self.critic = nn.Sequential(
-            init_layer(nn.Linear(envs.single_observation_space.shape[0], 64)),
+            init_layer(nn.Linear(np.prod(envs.single_observation_space.shape), 64)),
             nn.Tanh(),
             init_layer(nn.Linear(64, 64)),
             nn.Tanh(),
@@ -119,23 +119,29 @@ class Agent(nn.Module):
         )
 
         self.actor = nn.Sequential(
-            init_layer(nn.Linear(envs.single_observation_space.shape[0], 64)),
+            init_layer(nn.Linear(np.prod(envs.single_observation_space.shape), 64)),
             nn.Tanh(),
             init_layer(nn.Linear(64, 64)),
             nn.Tanh(),
-            init_layer(nn.Linear(64, envs.single_action_space.n)),
+            init_layer(nn.Linear(64, np.prod(envs.single_action_space.shape))),
+        )
+
+        self.actor_log_std = nn.Parameter(
+            torch.zeros(1, np.prod(envs.single_action_space.shape))
         )
 
     def get_action(self, state, action=None):
-        logits = self.actor(state)
-        probs = Categorical(logits=logits)
+        mean = self.actor(state)
+        log_std = self.actor_log_std.expand_as(mean)
+        std = torch.exp(log_std)
+        probs = Normal(mean, std)
 
         if action == None:
             action = probs.sample()
 
-        log_prob = probs.log_prob(action)
+        log_prob = probs.log_prob(action).sum(1)
 
-        return action, log_prob, probs.entropy()
+        return action, log_prob, probs.entropy().sum(1)
 
     def get_value(self, state):
         return self.critic(state)
@@ -146,8 +152,8 @@ def create_env(env_id, seed, idx, record_video, run_name):
         env = gym.make(env_id, render_mode="rgb_array")
         if record_video:
             if idx == 0:
-                env = gym.wrappers.RecordVideo(
-                    env, f"videos/{run_name}", episode_trigger=lambda x: x % 20 == 0
+                env = gym.experimental.wrappers.RecordVideoV0(
+                    env, f"videos/{run_name}", episode_trigger=lambda x: x % 50 == 0
                 )
 
         env = gym.wrappers.ClipAction(env)
@@ -180,6 +186,7 @@ if __name__ == "__main__":
             for i in range(args.num_envs)
         ]
     )
+    envs = gym.wrappers.RecordEpisodeStatistics(envs)
 
     device = torch.device(
         "cuda" if torch.cuda.is_available() and args.cuda is True else "cpu"
@@ -240,7 +247,10 @@ if __name__ == "__main__":
             # Take a step in the environments based on the action returned from the actor network
             # The tensor has to be transferred back to the CPU since it's carrying out the environment interaction.
             # The tensor then has to be converted to a numpy array because that's what the gym environment takes
-            state, reward, done, *info = envs.step(action.cpu().numpy())
+            state, reward, done, _, info = envs.step(action.cpu().numpy())
+
+            if "episode" in info.keys():
+                episodic_return = info["episode"]["r"]
 
             # Add the new reward to the rewards storage tensor
             rewards[t] = torch.tensor(reward).to(device)
@@ -331,6 +341,7 @@ if __name__ == "__main__":
 
         print(f"Total timesteps: {total_t}")
         print(f"Loss: {loss}")
+        print(f"Episodic return: {round(episodic_return[0], 3)}")
         print(f"Total training time: {round(time.time() - start_time, 2)}")
         print("")
 

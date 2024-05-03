@@ -40,7 +40,13 @@ Be able to dockerize it to run on the HPC
 
 # Continuous PPO Notes:
 
--
+- Normalizing the observation by subtracting its running mean and dividing by its variance greatly boosts model performance
+  - Do this in gym with the VecNormalize wrapper
+- On top of observation normalization, observations are also clipped
+  - The VecNormalize wrapper also does this in gym
+- Reward scaling can signifcantly affect the performance of the algorithm
+  - The VecNormalize wrapper does this by applying a discount-based scaling scheme where the rewards are divided by the standard deviation of a rolling discounted sum of the rewards (without subtracting and re-adding the mean)
+- Reward clipping is also implemented by VecNormalize, but it's not clear whether this affects performance
 
 # PPO Pseudocode
 
