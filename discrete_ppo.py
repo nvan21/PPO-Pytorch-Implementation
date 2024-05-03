@@ -1,6 +1,7 @@
 import argparse
 import random
 import time
+from datetime import datetime
 
 import gymnasium as gym
 import numpy as np
@@ -140,13 +141,13 @@ class Agent(nn.Module):
         return self.critic(state)
 
 
-def create_env(env_id, seed, idx, record_video):
+def create_env(env_id, seed, idx, record_video, run_name):
     def callback():
         env = gym.make(env_id, render_mode="rgb_array")
         if record_video:
             if idx == 0:
                 env = gym.wrappers.RecordVideo(
-                    env, f"videos/{args.env_id}", episode_trigger=lambda x: x % 5 == 0
+                    env, f"videos/{run_name}", episode_trigger=lambda x: x % 20 == 0
                 )
             env.action_space.seed(seed)
             env.observation_space.seed(seed)
@@ -158,7 +159,8 @@ def create_env(env_id, seed, idx, record_video):
 
 if __name__ == "__main__":
     args = get_args()
-    run_name = f"{args.env_id}_{args.seed}"
+    date = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
+    run_name = f"{args.env_id}_{args.seed}_{date}"
 
     # Initialize seeding
     random.seed(args.seed)
@@ -168,7 +170,7 @@ if __name__ == "__main__":
     # Initalize vectorized gym environments
     envs = gym.vector.SyncVectorEnv(
         [
-            create_env(args.env_id, args.seed, i, args.record_video)
+            create_env(args.env_id, args.seed, i, args.record_video, run_name)
             for i in range(args.num_envs)
         ]
     )
@@ -298,10 +300,10 @@ if __name__ == "__main__":
                         minibatch_advantages - minibatch_advantages.mean()
                     ) / (minibatch_advantages.std() + 1e-8)
 
-                log_ratio = new_log_probs - batch_log_probs[minibatch_idxs]
-                surrogate_obj_1 = log_ratio * minibatch_advantages
+                ratio = torch.exp(new_log_probs - batch_log_probs[minibatch_idxs])
+                surrogate_obj_1 = ratio * minibatch_advantages
                 surrogate_obj_2 = (
-                    torch.clamp(log_ratio, 1 - args.clip, 1 + args.clip)
+                    torch.clamp(ratio, 1 - args.clip, 1 + args.clip)
                     * minibatch_advantages
                 )
 
