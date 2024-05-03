@@ -145,7 +145,9 @@ def create_env(env_id, seed, idx, record_video):
         env = gym.make(env_id, render_mode="rgb_array")
         if record_video:
             if idx == 0:
-                env = gym.wrappers.RecordVideo(env, f"videos/{args.env_id}")
+                env = gym.wrappers.RecordVideo(
+                    env, f"videos/{args.env_id}", episode_trigger=lambda x: x % 5 == 0
+                )
             env.action_space.seed(seed)
             env.observation_space.seed(seed)
 
@@ -156,6 +158,7 @@ def create_env(env_id, seed, idx, record_video):
 
 if __name__ == "__main__":
     args = get_args()
+    run_name = f"{args.env_id}_{args.seed}"
 
     # Initialize seeding
     random.seed(args.seed)
@@ -204,10 +207,13 @@ if __name__ == "__main__":
     # Calculate the batch size, minibatch size, and number of epochs based on the steps per batch, number of environments, and total timesteps
     batch_size = int(args.steps_per_batch * args.num_envs)
     minibatch_size = int(batch_size // args.num_minibatches)
-    num_epochs = int(args.total_timesteps / batch_size)
+    num_updates = int(args.total_timesteps / batch_size)
     total_t = 0
     start_time = time.time()
-    for update in range(num_epochs):
+    for update in range(num_updates):
+        # Anneal the learning rate
+        frac = 1.0 - (update - 1.0) / num_updates
+        agent_optimizer.param_groups[0]["lr"] = frac * args.learning_rate
 
         for t in range(args.steps_per_batch):
             total_t += 1 * args.num_envs
