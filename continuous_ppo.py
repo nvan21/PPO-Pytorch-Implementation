@@ -149,8 +149,14 @@ def create_env(env_id, seed, idx, record_video, run_name):
                 env = gym.wrappers.RecordVideo(
                     env, f"videos/{run_name}", episode_trigger=lambda x: x % 20 == 0
                 )
-            env.action_space.seed(seed)
-            env.observation_space.seed(seed)
+
+        env = gym.wrappers.ClipAction(env)
+        env = gym.wrappers.NormalizeObservation(env)
+        env = gym.wrappers.TransformObservation(env, lambda obs: np.clip(obs, -10, 10))
+        env = gym.wrappers.NormalizeReward(env)
+        env = gym.wrappers.TransformReward(env, lambda obs: np.clip(obs, -10, 10))
+        env.action_space.seed(seed)
+        env.observation_space.seed(seed)
 
         return env
 
