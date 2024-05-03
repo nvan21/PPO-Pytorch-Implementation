@@ -9,10 +9,10 @@
 
 # Goal:
 
-Create a highly optimized version of PPO that's able to train on gymnasium environments
+Create a highly optimized version of PPO that's able to train on gymnasium environments.
 Be able to dockerize it to run on the HPC
 
-# Notes:
+# Discrete PPo Notes:
 
 - Vectorized architecture handles long horizon episodes by learning from fixed-length trajectory segments (look at iclr blog for psuedocode)
   - N is the number of parallel environments and M is the length of trajectory learning
@@ -37,6 +37,10 @@ Be able to dockerize it to run on the HPC
 - Penalizing the KL coefficient ensures that the updated policy is not too far from the original policy
   - The KL divergence is a measure of how far one probability distribution (like the action probability distribution from a policy) to another probability distribution
   - However, it empirically performs worse than the clipped surrogate objective according to the PPO paper
+
+# Continuous PPO Notes:
+
+-
 
 # PPO Pseudocode
 
