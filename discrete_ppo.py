@@ -8,6 +8,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.distributions import Categorical
+from torch.utils.tensorboard import SummaryWriter
 
 
 def get_args():
@@ -160,7 +161,8 @@ def create_env(env_id, seed, idx, record_video, run_name):
 if __name__ == "__main__":
     args = get_args()
     date = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
-    run_name = f"{args.env_id}_{args.seed}_{date}"
+    run_name = f"{args.env_id}/seed_{args.seed}_date_{date}"
+    writer = SummaryWriter(f"runs/{run_name}")
 
     # Initialize seeding
     random.seed(args.seed)
@@ -174,6 +176,7 @@ if __name__ == "__main__":
             for i in range(args.num_envs)
         ]
     )
+    envs = gym.wrappers.RecordEpisodeStatistics(envs)
 
     device = torch.device(
         "cuda" if torch.cuda.is_available() and args.cuda is True else "cpu"
@@ -234,7 +237,11 @@ if __name__ == "__main__":
             # Take a step in the environments based on the action returned from the actor network
             # The tensor has to be transferred back to the CPU since it's carrying out the environment interaction.
             # The tensor then has to be converted to a numpy array because that's what the gym environment takes
-            state, reward, done, *info = envs.step(action.cpu().numpy())
+            state, reward, done, _, info = envs.step(action.cpu().numpy())
+
+            if "episode" in info.keys():
+                episodic_return = info["episode"]["r"]
+                writer.add_scalar("episodic return", episodic_return[0], total_t)
 
             # Add the new reward to the rewards storage tensor
             rewards[t] = torch.tensor(reward).to(device)
@@ -329,3 +336,4 @@ if __name__ == "__main__":
         print("")
 
     envs.close()
+    writer.close()

@@ -2,10 +2,11 @@
 
 # Useful links:
 
-![https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/] - blog post walking through PPO optimizations
-![https://www.youtube.com/watch?v=MEt6rrxH8W4] - Youtube video walking through the process of implementing PPO
-![https://arxiv.org/abs/1707.06347] - Original PPO paper
-![https://arxiv.org/abs/1506.02438] - Paper on Generalized Advantage Estimation (GAE)
+- [https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/] - blog post walking through PPO optimizations
+- [https://www.youtube.com/watch?v=MEt6rrxH8W4] - Youtube video walking through the process of implementing PPO
+- [https://github.com/araffin/rl-baselines-zoo/blob/master/hyperparams/ppo2.yml] RL Baselines (useful for tuned hyperparameters)
+- [https://arxiv.org/abs/1707.06347] - Original PPO paper
+- [https://arxiv.org/abs/1506.02438] - Paper on Generalized Advantage Estimation (GAE)
 
 # Goal:
 

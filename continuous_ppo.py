@@ -8,6 +8,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.distributions import Normal
+from torch.utils.tensorboard import SummaryWriter
 
 
 def get_args():
@@ -172,7 +173,8 @@ def create_env(env_id, seed, idx, record_video, run_name):
 if __name__ == "__main__":
     args = get_args()
     date = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
-    run_name = f"{args.env_id}_{args.seed}_{date}"
+    run_name = f"{args.env_id}/seed_{args.seed}_date_{date}"
+    writer = SummaryWriter(f"runs/{run_name}")
 
     # Initialize seeding
     random.seed(args.seed)
@@ -251,6 +253,7 @@ if __name__ == "__main__":
 
             if "episode" in info.keys():
                 episodic_return = info["episode"]["r"]
+                writer.add_scalar("episodic return", episodic_return[0], total_t)
 
             # Add the new reward to the rewards storage tensor
             rewards[t] = torch.tensor(reward).to(device)
@@ -346,3 +349,4 @@ if __name__ == "__main__":
         print("")
 
     envs.close()
+    writer.close()
