@@ -252,8 +252,8 @@ if __name__ == "__main__":
             state, reward, done, _, info = envs.step(action.cpu().numpy())
 
             if "episode" in info.keys():
-                episodic_return = info["episode"]["r"]
-                writer.add_scalar("episodic return", episodic_return[0], total_t)
+                episodic_return = info["episode"]["r"].mean()
+                writer.add_scalar("episodic return", episodic_return, total_t)
 
             # Add the new reward to the rewards storage tensor
             rewards[t] = torch.tensor(reward).to(device)
@@ -344,7 +344,7 @@ if __name__ == "__main__":
 
         print(f"Total timesteps: {total_t}")
         print(f"Loss: {loss}")
-        print(f"Episodic return: {round(episodic_return[0], 3)}")
+        print(f"Episodic return: {round(episodic_return, 3)}")
         print(f"Total training time: {round(time.time() - start_time, 2)}")
         print("")
 

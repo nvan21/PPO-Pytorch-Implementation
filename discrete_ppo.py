@@ -2,6 +2,7 @@ import argparse
 import random
 import time
 from datetime import datetime
+import os
 
 import gymnasium as gym
 import numpy as np
@@ -116,7 +117,7 @@ class Agent(nn.Module):
             nn.Tanh(),
             init_layer(nn.Linear(64, 64)),
             nn.Tanh(),
-            init_layer(nn.Linear(64, 1)),
+            init_layer(nn.Linear(64, 1), std=1.0),
         )
 
         self.actor = nn.Sequential(
@@ -124,7 +125,7 @@ class Agent(nn.Module):
             nn.Tanh(),
             init_layer(nn.Linear(64, 64)),
             nn.Tanh(),
-            init_layer(nn.Linear(64, envs.single_action_space.n)),
+            init_layer(nn.Linear(64, envs.single_action_space.n), std=0.01),
         )
 
     def get_action(self, state, action=None):
@@ -240,8 +241,8 @@ if __name__ == "__main__":
             state, reward, done, _, info = envs.step(action.cpu().numpy())
 
             if "episode" in info.keys():
-                episodic_return = info["episode"]["r"]
-                writer.add_scalar("episodic return", episodic_return[0], total_t)
+                episodic_return = info["episode"]["r"].mean()
+                writer.add_scalar("episodic return", episodic_return, total_t)
 
             # Add the new reward to the rewards storage tensor
             rewards[t] = torch.tensor(reward).to(device)
@@ -307,21 +308,22 @@ if __name__ == "__main__":
                         minibatch_advantages - minibatch_advantages.mean()
                     ) / (minibatch_advantages.std() + 1e-8)
 
-                ratio = torch.exp(new_log_probs - batch_log_probs[minibatch_idxs])
-                surrogate_obj_1 = ratio * minibatch_advantages
-                surrogate_obj_2 = (
+                log_ratio = new_log_probs - batch_log_probs[minibatch_idxs]
+                ratio = log_ratio.exp()
+                surrogate_obj_1 = -ratio * minibatch_advantages
+                surrogate_obj_2 = -(
                     torch.clamp(ratio, 1 - args.clip, 1 + args.clip)
                     * minibatch_advantages
                 )
 
-                policy_loss = torch.min(surrogate_obj_1, surrogate_obj_2).mean()
+                policy_loss = torch.max(surrogate_obj_1, surrogate_obj_2).mean()
                 value_loss = mse_loss(new_value, batch_returns[minibatch_idxs])
                 entropy_loss = entropy.mean()
 
                 # Calculate the loss value. The paper maximizes the objective function, but Adam uses gradient descent,
                 # so need to take the negative of the objective function in the paper.
                 loss = (
-                    -policy_loss
+                    policy_loss
                     + args.value_coeff * value_loss
                     - args.entropy_coeff * entropy_loss
                 )
@@ -330,8 +332,13 @@ if __name__ == "__main__":
                 loss.backward()
                 agent_optimizer.step()
 
+        writer.add_scalar("policy loss", policy_loss.item(), total_t)
+        writer.add_scalar("value loss", value_loss.item(), total_t)
+        writer.add_scalar("entropy", entropy_loss.item(), total_t)
+
         print(f"Total timesteps: {total_t}")
         print(f"Loss: {loss}")
+        print(f"Episodic return: {round(episodic_return, 3)}")
         print(f"Total training time: {round(time.time() - start_time, 2)}")
         print("")
 

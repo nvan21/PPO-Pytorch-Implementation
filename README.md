@@ -13,7 +13,7 @@
 Create a highly optimized version of PPO that's able to train on gymnasium environments.
 Be able to dockerize it to run on the HPC
 
-# Discrete PPo Notes:
+# Discrete PPO Notes:
 
 - Vectorized architecture handles long horizon episodes by learning from fixed-length trajectory segments (look at iclr blog for psuedocode)
   - N is the number of parallel environments and M is the length of trajectory learning
