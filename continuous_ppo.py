@@ -95,6 +95,12 @@ def get_args():
     parser.add_argument(
         "--num_minibatches", type=int, default=32, help="number of minibatches"
     )
+    parser.add_argument(
+        "--anneal_lr",
+        type=bool,
+        default=True,
+        help="flag whether or not to linearly anneal the learning rate",
+    )
 
     return parser.parse_args()
 
@@ -229,8 +235,9 @@ if __name__ == "__main__":
     start_time = time.time()
     for update in range(num_updates):
         # Anneal the learning rate
-        frac = 1.0 - (update - 1.0) / num_updates
-        agent_optimizer.param_groups[0]["lr"] = frac * args.learning_rate
+        if args.anneal_lr is True:
+            frac = 1.0 - (update - 1.0) / num_updates
+            agent_optimizer.param_groups[0]["lr"] = frac * args.learning_rate
 
         for t in range(args.steps_per_batch):
             total_t += 1 * args.num_envs
@@ -281,11 +288,13 @@ if __name__ == "__main__":
                 delta_t = -values[t] + rewards[t] + args.gamma * next_value * mask
 
                 # Equation for GAE
-                prev_advantage = delta_t + args.gamma * args.gae_lambda * prev_advantage
+                prev_advantage = (
+                    delta_t + args.gamma * args.gae_lambda * prev_advantage * mask
+                )
                 advantages[t] = prev_advantage
 
-                # Calculate returns (used for value function loss)
-                returns = advantages + values
+            # Calculate returns (used for value function loss)
+            returns = advantages + values
 
         # Flatten storage tensors so that they can be sliced into minibatches
         batch_states = states.reshape((-1,) + envs.single_observation_space.shape)
