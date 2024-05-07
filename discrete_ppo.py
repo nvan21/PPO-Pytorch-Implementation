@@ -259,17 +259,6 @@ if __name__ == "__main__":
             advantages = torch.zeros_like(rewards).to(device)
             prev_advantage = 0
 
-            with open("next_value.pkl", "wb") as file:
-                pickle.dump(next_value, file)
-            with open("dones.pkl", "wb") as file:
-                pickle.dump(dones, file)
-            with open("values.pkl", "wb") as file:
-                pickle.dump(values, file)
-            with open("rewards.pkl", "wb") as file:
-                pickle.dump(rewards, file)
-            with open("next_done.pkl", "wb") as file:
-                pickle.dump(next_done, file)
-
             for t in reversed(range(args.steps_per_batch)):
                 # Deals with the first iteration when trying to calculate the mask
                 if t == args.steps_per_batch - 1:
