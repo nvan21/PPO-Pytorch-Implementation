@@ -2,9 +2,16 @@
 
 # Results
 ![Hopper agent trained with PPO](results/Hopper.gif)
+Best agent trained on the Hopper environment.
+
 ![Cartpole agent trained with PPO](results/Cartpole.gif)
+Best agent trained on the PPO environment.
+
 ![LunarLander agent trained with PPO](results/LunarLander.gif)
+Best agent trained on the Lunar Lander environment.
+
 ![Cheetah agent trained with PPO](results/Cheetah.gif)
+Best agent trained on the Cheetah environment.
 
 # Useful links:
 
