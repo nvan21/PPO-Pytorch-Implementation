@@ -1,7 +1,7 @@
 # Project Outline
 
 # Results
-!(Hopper.gif)
+![Hopper agent trained with PPO](Hopper.gif)
 
 # Useful links:
 
