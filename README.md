@@ -1,17 +1,21 @@
 # Project Outline
 
 # Results
-![Hopper agent trained with PPO](results/Hopper.gif)
-Best agent trained on the Hopper environment.
+| ![Hopper agent trained with PPO](results/Hopper.gif) | 
+|:--:| 
+| *Best agent trained on the Hopper gymnasium environment* |
 
-![Cartpole agent trained with PPO](results/Cartpole.gif)
-Best agent trained on the PPO environment.
+| ![Cartpole agent trained with PPO](results/Cartpole.gif) | 
+|:--:| 
+| *Best agent trained on the Cartpole gymnasium environment* |
 
-![LunarLander agent trained with PPO](results/LunarLander.gif)
-Best agent trained on the Lunar Lander environment.
+| ![LunarLander agent trained with PPO](results/LunarLander.gif) | 
+|:--:| 
+| *Best agent trained on the LunarLander gymnasium environment* |
 
-![Cheetah agent trained with PPO](results/Cheetah.gif)
-Best agent trained on the Cheetah environment.
+| ![Cheetah agent trained with PPO](results/Cheetah.gif) | 
+|:--:| 
+| *Best agent trained on the Cheetah gymnasium environment* |
 
 # Useful links:
 
