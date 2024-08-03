@@ -2,6 +2,9 @@
 
 # Results
 ![Hopper agent trained with PPO](results/Hopper.gif)
+![Cartpole agent trained with PPO](results/Cartpole.gif)
+![LunarLander agent trained with PPO](results/LunarLander.gif)
+![Cheetah agent trained with PPO](results/Cheetah.gif)
 
 # Useful links:
 
