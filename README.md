@@ -11,7 +11,6 @@
 # Goal:
 
 Create a highly optimized version of PPO that's able to train on gymnasium environments.
-Be able to dockerize it to run on the HPC
 
 # Discrete PPO Notes:
 
